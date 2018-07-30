@@ -6,7 +6,7 @@ namespace TipBot
     {
         public void Initialize(TextFileConfiguration configReader)
         {
-            this.BotToken = configReader.GetOrDefault<string>("token", "NDczMDk1NzkxNDIyOTk2NTAx.Dj89EA.YWXjQwVCO-wykfgbkKN2tGd_IuI");
+            this.BotToken = configReader.GetOrDefault<string>("token", "discordtoken");
 
 			// To run stratis daemon that supports RPC use "dotnet exec ...\netcoreapp2.1\Stratis.StratisD.dll -rpcuser=user -rpcpassword=4815162342 -rpcport=23521 -server=1"
 			this.DaemonUrl = configReader.GetOrDefault<string>("daemonUrl", "http://127.0.0.1:23521/");
@@ -20,7 +20,6 @@ namespace TipBot
 			this.FullNodeApiUrl = configReader.GetOrDefault<string>("fullNodeApiUrl", "http://127.0.0.1/api/");
 			this.FullNodeApiPort = configReader.GetOrDefault<int>("fullNodeApiPort", 38220);
 			this.FullNodeApiEnabled = configReader.GetOrDefault<bool>("fullNodeApiEnabled", true);
-			//			this.FullNodeApiEnabled = configReader.GetOrDefault<bool>("fullNodeApiEnabled", false);
 		}
 
 		public TextFileConfiguration ConfigReader { get; private set; }
