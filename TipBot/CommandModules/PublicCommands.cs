@@ -50,29 +50,17 @@ namespace TipBot.CommandModules
 			return this.ReplyAsync(response);
 		}
 
-		[CommandWithHelp("sc-call", "Inspects smartcontract state at a specific contract and variable", "sc-state string contractAddress, string variableName, string variableType")]
+		[CommandWithHelp("sc-call", "calls a smart contract", "sc-state string contractAddress, string methodname, uint amount")]
 		public Task SCCallAsync(string contractAddress, string methodName, uint amount)
 		{
 			var smartContractParameters = new List<string>();
-			var jsonParams = new Dictionary<string, object>
-			{
-{"walletName", "string"}, //previously created TODO add to settings?
-{"accountName", "account 0"},
-{"contractAddress", contractAddress},
-{"methodName", methodName},
-{"amount", amount},
-{"feeAmount", "10000"},
-{"password", Settings.WalletPassword},
-{"gasPrice", 1},
-{"gasLimit", 5000000},
-{"sender", "n4kJmndk8GwthFUe23bQ2xsKVGXqswRs5y"},
-				{"parameters", smartContractParameters}
-			};
 
-
-	string response;
+			string response;
 			var fullNodeApiClient = new FullNodeApiClient(this.Settings);
-			response = fullNodeApiClient.callSmartContractMethod(jsonParams);
+			IUser sender = this.Context.User;
+			var senderAddress = this.CommandsManager.GetDepositAddress(sender);
+
+			response = fullNodeApiClient.callSmartContractMethod(contractAddress, methodName, amount, senderAddress);
 			if (response == null)
 			{
 				response = "*** FAIL";
