@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using TipBot.Helpers;
 using TipBot.Database.Models;
 using TipBot.Logic;
 using TipBot.Services;
@@ -36,7 +37,38 @@ namespace TipBot.CommandModules
         /// <summary>Protects access to <see cref="CommandsManager"/>.</summary>
         private readonly object lockObject = new object();
 
-        [CommandWithHelp("tip", "Transfers specified amount of money to mentioned user.", "tip <user> <amount> <message>*")]
+		[CommandWithHelp("sc-state", "Inspects smartcontract state at a specific contract and variable", "sc-state string contractAddress, string variableName, string variableType")]
+		public Task SCStateAsync(string contractAddress, string variableName, string variableType)
+		{
+			string response;
+			var fullNodeApiClient = new FullNodeApiClient(this.Settings);
+			response = fullNodeApiClient.inspectSmartContractState(contractAddress, variableName, variableType);
+			if (response == null)
+			{
+				response = "*** FAIL";
+			}
+			return this.ReplyAsync(response);
+		}
+
+		[CommandWithHelp("sc-call", "calls a smart contract", "sc-state string contractAddress, string methodname, uint amount")]
+		public Task SCCallAsync(string contractAddress, string methodName, uint amount)
+		{
+			var smartContractParameters = new List<string>();
+
+			string response;
+			var fullNodeApiClient = new FullNodeApiClient(this.Settings);
+			IUser sender = this.Context.User;
+			var senderAddress = this.CommandsManager.GetDepositAddress(sender);
+
+			response = fullNodeApiClient.callSmartContractMethod(contractAddress, methodName, amount, senderAddress);
+			if (response == null)
+			{
+				response = "*** FAIL";
+			}
+			return this.ReplyAsync(response);
+		}
+
+	[CommandWithHelp("tip", "Transfers specified amount of money to mentioned user.", "tip <user> <amount> <message>*")]
         public Task TipAsync(IUser userBeingTipped, decimal amount, [Remainder]string message = null)
         {
             IUser sender = this.Context.User;
