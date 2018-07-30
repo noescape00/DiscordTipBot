@@ -16,10 +16,10 @@ namespace TipBot.Tests.Helpers
             await base.StartAsync(new string[0]);
         }
 
-        protected override IServiceCollection GetServicesCollection()
+        protected override IServiceCollection GetServicesCollection(Settings settings)
         {
             // Replace real context factory with the one that serves contexts that are using in-memory database.
-            IServiceCollection servicesCollection = base.GetServicesCollection();
+            IServiceCollection servicesCollection = base.GetServicesCollection(settings);
 
             ServiceDescriptor factoryToReplace = servicesCollection.First(x => x.ServiceType == typeof(IContextFactory));
             servicesCollection.Remove(factoryToReplace);

@@ -26,9 +26,9 @@ namespace TipBot.Logic
 
             try
             {
-                this.services = this.GetServicesCollection().BuildServiceProvider();
+				var settings = this.services.GetRequiredService<Settings>();
+				this.services = this.GetServicesCollection(settings).BuildServiceProvider();
 
-                var settings = this.services.GetRequiredService<Settings>();
                 settings.Initialize(new TextFileConfiguration(args));
 
                 // Migrate DB in case there are updates in the db layout.
@@ -66,21 +66,27 @@ namespace TipBot.Logic
             return Task.CompletedTask;
         }
 
-        protected virtual IServiceCollection GetServicesCollection()
+        protected virtual IServiceCollection GetServicesCollection(Settings settings)
         {
             this.logger.Trace("()");
 
-            IServiceCollection collection = new ServiceCollection()
-                .AddSingleton<DiscordSocketClient>()
-                .AddSingleton<CommandService>()
-                .AddSingleton<CommandHandlingService>()
-                .AddSingleton<Settings>()
-                .AddSingleton<CommandsManager>()
-                .AddSingleton<QuizExpiryChecker>()
-                .AddSingleton<IContextFactory, ContextFactory>()
-                // Replace implementation to use API instead of RPC.
-                .AddSingleton<INodeIntegration, RPCNodeIntegration>();
+			IServiceCollection collection = new ServiceCollection()
+				.AddSingleton<DiscordSocketClient>()
+				.AddSingleton<CommandService>()
+				.AddSingleton<CommandHandlingService>()
+				.AddSingleton<Settings>()
+				.AddSingleton<CommandsManager>()
+				.AddSingleton<QuizExpiryChecker>()
+				.AddSingleton<IContextFactory, ContextFactory>();
 
+			// Replace implementation to use API instead of RPC.
+			if (settings.FullNodeApiEnabled)
+			{
+				collection.AddSingleton<INodeIntegration, SFNApiIntegration>();
+			} else
+			{
+				collection.AddSingleton<INodeIntegration, RPCNodeIntegration>();
+			}
             this.logger.Trace("(-)");
             return collection;
         }
