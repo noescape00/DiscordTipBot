@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using TipBot.Helpers;
 using TipBot.Logic;
 using TipBot.Services;
 
@@ -38,7 +39,50 @@ namespace TipBot.CommandModules
         /// <summary>Protects access to <see cref="CommandsManager"/>.</summary>
         private readonly object lockObject = new object();
 
-        [CommandWithHelp("tip", "Transfers specified amount of money to mentioned user.", "tip <user> <amount> <message>*")]
+		[CommandWithHelp("sc-state", "Inspects smartcontract state at a specific contract and variable", "sc-state string contractAddress, string variableName, string variableType")]
+		public Task SCStateAsync(string contractAddress, string variableName, string variableType)
+		{
+			string response;
+			var fullNodeApiClient = new FullNodeApiClient(this.Settings);
+			response = fullNodeApiClient.inspectSmartContractState(contractAddress, variableName, variableType);
+			if (response == null)
+			{
+				response = "*** FAIL";
+			}
+			return this.ReplyAsync(response);
+		}
+
+		[CommandWithHelp("sc-call", "Inspects smartcontract state at a specific contract and variable", "sc-state string contractAddress, string variableName, string variableType")]
+		public Task SCCallAsync(string contractAddress, string methodName, uint amount)
+		{
+			var smartContractParameters = new List<string>();
+			var jsonParams = new Dictionary<string, object>
+			{
+{"walletName", "string"}, //previously created TODO add to settings?
+{"accountName", "account 0"},
+{"contractAddress", contractAddress},
+{"methodName", methodName},
+{"amount", amount},
+{"feeAmount", "10000"},
+{"password", Settings.WalletPassword},
+{"gasPrice", 1},
+{"gasLimit", 5000000},
+{"sender", "n4kJmndk8GwthFUe23bQ2xsKVGXqswRs5y"},
+				{"parameters", smartContractParameters}
+			};
+
+
+	string response;
+			var fullNodeApiClient = new FullNodeApiClient(this.Settings);
+			response = fullNodeApiClient.callSmartContractMethod(jsonParams);
+			if (response == null)
+			{
+				response = "*** FAIL";
+			}
+			return this.ReplyAsync(response);
+		}
+
+	[CommandWithHelp("tip", "Transfers specified amount of money to mentioned user.", "tip <user> <amount> <message>*")]
         public Task TipAsync(IUser userBeingTipped, decimal amount, [Remainder]string message = null)
         {
             IUser sender = this.Context.User;
