@@ -1,6 +1,6 @@
 ﻿namespace TipBot.Database.Models
 {
-    public class DiscordUser
+    public class DiscordUserModel
     {
         public int Id { get; set; }
 
@@ -14,8 +14,6 @@
 
         /// <summary>How much money was received in total by <see cref="DepositAddress"/> by the time last check happened.</summary>
         public decimal LastCheckedReceivedAmountByAddress { get; set; } = 0;
-
-        //TODO add history of Tips, Withdrawals, Deposits
 
         public override string ToString()
         {

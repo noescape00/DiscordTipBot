@@ -4,42 +4,53 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BitcoinLib.ExceptionHandling.Rpc;
+using BitcoinLib.Responses;
 using BitcoinLib.Services.Coins.Base;
 using BitcoinLib.Services.Coins.Bitcoin;
 using NLog;
 using TipBot.Database;
 using TipBot.Database.Models;
 
-namespace TipBot.Logic
+namespace TipBot.Logic.NodeIntegrations
 {
-    public class RPCIntegration : IDisposable
+    public class RPCNodeIntegration : INodeIntegration
     {
-        private readonly ICoinService coinService;
-
-        private readonly IContextFactory contextFactory;
-
-        private readonly Settings settings;
-
         private const string AccountName = "account 0";
 
+        private readonly ICoinService coinService;
+        private readonly IContextFactory contextFactory;
+        private readonly Settings settings;
         private readonly Logger logger;
 
         private Task depositsCheckingTask;
+        private readonly CancellationTokenSource cancellation;
 
-        private CancellationTokenSource cancellation;
+        private readonly string walletPassword;
 
-        public RPCIntegration(Settings settings, IContextFactory contextFactory)
+        public RPCNodeIntegration(Settings settings, IContextFactory contextFactory)
         {
-            this.coinService = new BitcoinService(settings.DaemonUrl, settings.RpcUsername, settings.RpcPassword, settings.WalletPassword, settings.RpcRequestTimeoutInSeconds);
+            // To run stratis daemon that supports RPC use "dotnet exec ...\netcoreapp2.1\Stratis.StratisD.dll -rpcuser=user -rpcpassword=4815162342 -rpcport=23521 -server=1"
+            var daemonUrl = settings.ConfigReader.GetOrDefault<string>("daemonUrl", "http://127.0.0.1:23521/");
+            var rpcUsername = settings.ConfigReader.GetOrDefault<string>("rpcUsername", "user");
+            var rpcPassword = settings.ConfigReader.GetOrDefault<string>("rpcPassword", "4815162342");
+            var rpcRequestTimeoutInSeconds = settings.ConfigReader.GetOrDefault<short>("rpcTimeout", 20);
+            this.walletPassword = settings.ConfigReader.GetOrDefault<string>("walletPassword", "4815162342");
+
+            this.coinService = new BitcoinService(daemonUrl, rpcUsername, rpcPassword, this.walletPassword, rpcRequestTimeoutInSeconds);
             this.contextFactory = contextFactory;
             this.settings = settings;
             this.cancellation = new CancellationTokenSource();
             this.logger = LogManager.GetCurrentClassLogger();
         }
 
+        /// <inheritdoc />
         public void Initialize()
         {
             this.logger.Trace("()");
+
+            // Unlock wallet.
+            if (this.coinService.IsWalletEncrypted())
+                this.coinService.WalletPassphrase(this.walletPassword, int.MaxValue);
 
             using (BotDbContext context = this.contextFactory.CreateContext())
             {
@@ -55,13 +66,44 @@ namespace TipBot.Logic
             this.logger.Trace("(-)");
         }
 
+        /// <inheritdoc />
+        /// <exception cref="InvalidAddressException">Thrown if <paramref name="address"/> is invalid.</exception>
+        public void Withdraw(decimal amount, string address)
+        {
+            this.logger.Trace("({0}:{1},{2}:'{3}')", nameof(amount), amount, nameof(address), address);
+
+            ValidateAddressResponse validationResult = this.coinService.ValidateAddress(address);
+
+            if (!validationResult.IsValid)
+            {
+                this.logger.Trace("(-)[INVALID_ADDRESS]");
+                throw new InvalidAddressException();
+            }
+
+            try
+            {
+                this.coinService.SendFrom(AccountName, address, amount);
+            }
+            catch (RpcInternalServerErrorException e)
+            {
+                if (e.Message == "Insufficient funds")
+                {
+                    // This should never happen.
+                    this.logger.Fatal("Insufficient funds!");
+                }
+
+                this.logger.Error(e.ToString);
+                throw;
+            }
+
+            this.logger.Trace("(-)");
+        }
+
         /// <summary>Populates database with unused addresses.</summary>
         private void PregenerateAddresses(BotDbContext context)
         {
             this.logger.Trace("()");
             this.logger.Info("Database was not prefilled with addresses. Starting.");
-
-            this.coinService.WalletPassphrase(this.settings.WalletPassword, int.MaxValue);
 
             int alreadyGenerated = this.coinService.GetAddressesByAccount(AccountName).Count;
 
@@ -107,50 +149,58 @@ namespace TipBot.Logic
 
             this.depositsCheckingTask = Task.Run(async () =>
             {
-                while (!this.cancellation.IsCancellationRequested)
+                try
                 {
-                    uint currentBlock = this.coinService.GetBlockCount();
-
-                    this.logger.Trace("Current block is {0}, last checked block is {1}", currentBlock, lastCheckedBlock);
-
-                    if (currentBlock > lastCheckedBlock)
+                    while (!this.cancellation.IsCancellationRequested)
                     {
-                        lastCheckedBlock = currentBlock;
+                        uint currentBlock = this.coinService.GetBlockCount();
 
-                        using (BotDbContext context = this.contextFactory.CreateContext())
+                        this.logger.Trace("Current block is {0}, last checked block is {1}", currentBlock, lastCheckedBlock);
+
+                        if (currentBlock > lastCheckedBlock)
                         {
-                            this.CheckDeposits(context);
-                        }
-                    }
+                            lastCheckedBlock = currentBlock;
 
-                    try
-                    {
-                        await Task.Delay(60 * 1000, this.cancellation.Token);
+                            using (BotDbContext context = this.contextFactory.CreateContext())
+                            {
+                                this.CheckDeposits(context);
+                            }
+                        }
+
+                        await Task.Delay(30 * 1000, this.cancellation.Token);
                     }
-                    catch (OperationCanceledException)
-                    {
-                    }
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (Exception exception)
+                {
+                    this.logger.Fatal(exception.ToString);
+                    throw;
                 }
             });
 
             this.logger.Trace("(-)");
         }
 
-        // TODO add comment and test this properly
+        /// <summary>
+        /// Checks if money were deposited to an address associated with any user who has a deposit address.
+        /// When money are deposited user's balance is updated.
+        /// </summary>
         private void CheckDeposits(BotDbContext context)
         {
             this.logger.Trace("()");
 
-            List<DiscordUser> usersToTrack = context.Users.Where(x => x.DepositAddress != null).ToList();
+            List<DiscordUserModel> usersToTrack = context.Users.Where(x => x.DepositAddress != null).ToList();
             this.logger.Trace("Tracking {0} users.", usersToTrack.Count);
 
-            foreach (DiscordUser user in usersToTrack)
+            foreach (DiscordUserModel user in usersToTrack)
             {
                 decimal receivedByAddress = this.coinService.GetReceivedByAddress(user.DepositAddress, this.settings.MinConfirmationsForDeposit);
 
                 if (receivedByAddress > user.LastCheckedReceivedAmountByAddress)
                 {
-                    this.logger.Trace("New value for received by address is {0}. Old was {1}. Address is {2}.", receivedByAddress, user.LastCheckedReceivedAmountByAddress, user.DepositAddress);
+                    this.logger.Debug("New value for received by address is {0}. Old was {1}. Address is {2}.", receivedByAddress, user.LastCheckedReceivedAmountByAddress, user.DepositAddress);
 
                     decimal recentlyReceived = receivedByAddress - user.LastCheckedReceivedAmountByAddress;
                     user.LastCheckedReceivedAmountByAddress = receivedByAddress;

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net.Http;
 using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
@@ -9,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NLog;
 using TipBot.Database;
 using TipBot.Helpers;
+using TipBot.Logic.NodeIntegrations;
 using TipBot.Services;
 
 namespace TipBot.Logic
@@ -21,6 +21,7 @@ namespace TipBot.Logic
 
         public async Task StartAsync(string[] args)
         {
+            this.logger.Trace("({0}.{1}:{2})", nameof(args), nameof(args.Length), args.Length);
             this.logger.Info("Starting the bot.");
 
             try
@@ -36,8 +37,10 @@ namespace TipBot.Logic
                     db.Database.Migrate();
                 }
 
-                this.services.GetRequiredService<RPCIntegration>().Initialize();
+                this.services.GetRequiredService<INodeIntegration>().Initialize();
+                this.services.GetRequiredService<QuizExpiryChecker>().Initialize();
 
+                // Initialize discord API wrapper.
                 var client = this.services.GetRequiredService<DiscordSocketClient>();
 
                 client.Log += this.LogAsync;
@@ -52,6 +55,8 @@ namespace TipBot.Logic
             {
                 this.logger.Fatal(exception.ToString());
             }
+
+            this.logger.Trace("(-)");
         }
 
         private Task LogAsync(LogMessage log)
@@ -63,27 +68,34 @@ namespace TipBot.Logic
 
         protected virtual IServiceCollection GetServicesCollection()
         {
-            return new ServiceCollection()
+            this.logger.Trace("()");
+
+            IServiceCollection collection = new ServiceCollection()
                 .AddSingleton<DiscordSocketClient>()
                 .AddSingleton<CommandService>()
                 .AddSingleton<CommandHandlingService>()
-                .AddSingleton<HttpClient>()
-                .AddSingleton<PictureService>()
                 .AddSingleton<Settings>()
                 .AddSingleton<CommandsManager>()
+                .AddSingleton<QuizExpiryChecker>()
                 .AddSingleton<IContextFactory, ContextFactory>()
-                .AddSingleton<RPCIntegration>();
+                // Replace implementation to use API instead of RPC.
+                .AddSingleton<INodeIntegration, RPCNodeIntegration>();
+
+            this.logger.Trace("(-)");
+            return collection;
         }
 
         public void Dispose()
         {
+            this.logger.Trace("()");
             this.logger.Info("Application is shutting down...");
 
             this.services.GetRequiredService<DiscordSocketClient>()?.Dispose();
-            this.services.GetRequiredService<HttpClient>()?.Dispose();
-            this.services.GetRequiredService<RPCIntegration>()?.Dispose();
+            this.services.GetRequiredService<INodeIntegration>()?.Dispose();
+            this.services.GetRequiredService<QuizExpiryChecker>()?.Dispose();
 
             this.logger.Info("Shutdown completed.");
+            this.logger.Trace("(-)");
         }
     }
 }
