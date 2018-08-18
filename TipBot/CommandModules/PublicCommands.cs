@@ -10,12 +10,11 @@ using Discord.Commands;
 using Discord.WebSocket;
 using NLog;
 using TipBot.Database.Models;
-using TipBot.Helpers;
 using TipBot.Logic;
 
 namespace TipBot.CommandModules
 {
-    public class PublicCommands : ModuleBase<SocketCommandContext>
+    public class PublicCommands : TipbotModuleBase
     {
         /// <inheritdoc cref="CommandsManager"/>
         /// <remarks>
@@ -28,10 +27,6 @@ namespace TipBot.CommandModules
         /// </para>
         /// </remarks>
         public CommandsManager CommandsManager { get; set; }
-
-        /// <inheritdoc cref="Settings"/>
-        /// <remarks>Set by DI.</remarks>
-        public Settings Settings { get; set; }
 
         /// <summary>Protects access to <see cref="CommandsManager"/>.</summary>
         private readonly object lockObject = new object();
@@ -58,7 +53,7 @@ namespace TipBot.CommandModules
                     response = $"{sender.Mention} tipped {userBeingTipped.Mention} {amount} {this.Settings.Ticker}";
 
                     if (message != null)
-                        response += $" with message `{message.Replace("`","")}`";
+                        response += $" with message `{message.Replace("`", "")}`";
                 }
                 catch (CommandExecutionException exception)
                 {
@@ -69,7 +64,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("User tipped", response);
         }
 
         [CommandWithHelp("deposit", "Displays your unique deposit address or assigns you one if it wasn't assigned before.")]
@@ -87,7 +82,7 @@ namespace TipBot.CommandModules
                 {
                     string depositAddress = this.CommandsManager.GetDepositAddress(user);
 
-                    response = $"{user.Mention}, your unique deposit address is `{depositAddress}`";
+                    response = $"Your unique deposit address is `{depositAddress}`";
                     response += Environment.NewLine + $"Money are deposited after {this.Settings.MinConfirmationsForDeposit} confirmations.";
                 }
                 catch (OutOfDepositAddressesException)
@@ -99,12 +94,10 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Deposit address", response);
         }
 
-        [CommandWithHelp("withdraw", "Withdraws given amount to specified address. Fee will be subtracted from given amount." + "\n" +
-                                     "Keep in mind that withdrawal address will be publicly visible to all users in this channel. " +
-                                     "To avoid exposing your address use withdraw command in private messages with the bot.", "withdraw <amount> <address>")]
+        [CommandWithHelp("withdraw", "Withdraws given amount to specified address. Fee will be subtracted from given amount.", "withdraw <amount> <address>")]
         public Task WithdrawAsync(decimal amount, string address)
         {
             this.logger.Trace("({0}:{1},{2}:{3})", nameof(amount), amount, nameof(address), address);
@@ -130,7 +123,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Withdrawal", response);
         }
 
         [CommandWithHelp("balance", "Displays your current balance.")]
@@ -152,7 +145,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Current balance", response);
         }
 
         [CommandWithHelp("makeItRain", "Randomly selects online users from the current server and tips them 1 coin (or another value if specified by caller)." +
@@ -169,7 +162,7 @@ namespace TipBot.CommandModules
             await usersCollection.ForEachAsync(delegate (IReadOnlyCollection<IUser> users)
             {
                 onlineUsers.AddRange(users.Where(x => x.Status != UserStatus.Offline && !x.IsBot));
-            }).ConfigureAwait(false);
+            });
 
             onlineUsers.Remove(caller);
 
@@ -207,7 +200,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            await this.ReplyAsync(response).ConfigureAwait(false);
+            await EmbedReplyAsync("Make it rain", response);
         }
 
         [CommandWithHelp("chart", "Displays top 3 tippers and users being tipped over the last 7 days.", "chart <days=7>*")]
@@ -225,29 +218,18 @@ namespace TipBot.CommandModules
 
                     var builder = new StringBuilder();
 
-                    // Best tippers.
-                    if (chart.BestTippers.Count != 0)
-                    {
-                        builder.AppendLine($"Top {chart.BestTippers.Count} users who tipped the most in the last {days} days:");
+                    builder.AppendLine($"Top {chart.BestTippers.Count} users who tipped the most in the last {days} days:");
 
-                        foreach (KeyValuePair<ulong, decimal> tipper in chart.BestTippers)
-                            builder.AppendLine($"<@!{tipper.Key}> tipped {tipper.Value} {this.Settings.Ticker}");
-                    }
-                    else
-                        builder.AppendLine($"No one tipped anyone in the last {days} days!");
+                    foreach (KeyValuePair<ulong, decimal> tipper in chart.BestTippers)
+                        builder.AppendLine($"<@!{tipper.Key}> tipped {tipper.Value} {this.Settings.Ticker}");
 
                     builder.AppendLine();
 
-                    // Best being tipped.
-                    if (chart.BestBeingTipped.Count != 0)
-                    {
-                        builder.AppendLine($"Top {chart.BestBeingTipped.Count} users who were tipped the most in the last {days} days:");
+                    builder.AppendLine($"Top {chart.BestBeingTipped.Count} users who were tipped the most in the last {days} days:");
 
-                        foreach (KeyValuePair<ulong, decimal> beingTipped in chart.BestBeingTipped)
-                            builder.AppendLine($"<@!{beingTipped.Key}> received {beingTipped.Value} {this.Settings.Ticker}");
-                    }
-                    else
-                        builder.AppendLine($"No one was tipped in the last {days} days!");
+                    foreach (KeyValuePair<ulong, decimal> beingTipped in chart.BestBeingTipped)
+                        builder.AppendLine($"<@!{beingTipped.Key}> received {beingTipped.Value} {this.Settings.Ticker}");
+
 
                     response = builder.ToString();
                 }
@@ -260,7 +242,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            await this.ReplyAsync(response).ConfigureAwait(false);
+            await EmbedReplyAsync("Chart", response);
         }
 
         [CommandWithHelp("startQuiz", "You ask a question, supply hash of an answer and for how long the quiz will be running." +
@@ -285,6 +267,8 @@ namespace TipBot.CommandModules
                                $"Question is: `{question}`" + Environment.NewLine +
                                $"You have {durationMinutes} minutes to answer correctly and claim {amount} {this.Settings.Ticker}!" + Environment.NewLine +
                                $"If no one answers before time runs out {amount} {this.Settings.Ticker} will be returned to {user.Mention}.";
+
+                    Context.Message.DeleteAsync();
                 }
                 catch (CommandExecutionException exception)
                 {
@@ -295,7 +279,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Start a quiz", response);
         }
 
         [CommandWithHelp("answerQuiz", "Answer to any active quiz. Answer will be checked against all of them. In case your answer will be correct you'll receive a reward.",
@@ -336,7 +320,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Answer quiz", response);
         }
 
         [CommandWithHelp("listActiveQuizes", "Displays all quizes that are active.")]
@@ -359,7 +343,7 @@ namespace TipBot.CommandModules
                         builder.AppendLine($"Question: `{quiz.Question}`");
                         builder.AppendLine($"Reward: {quiz.Reward} {this.Settings.Ticker}");
 
-                        var minutesLeft = (int) ((quiz.CreationTime + TimeSpan.FromMinutes(quiz.DurationMinutes)) - DateTime.Now).TotalMinutes;
+                        var minutesLeft = (int)((quiz.CreationTime + TimeSpan.FromMinutes(quiz.DurationMinutes)) - DateTime.Now).TotalMinutes;
                         if (minutesLeft < 0)
                             minutesLeft = 0;
 
@@ -376,7 +360,7 @@ namespace TipBot.CommandModules
                 string response = this.TrimMessage(builder.ToString());
 
                 this.logger.Trace("(-)");
-                return this.ReplyAsync(response);
+                return EmbedReplyAsync("List active quizes", response);
             }
         }
 
@@ -415,7 +399,7 @@ namespace TipBot.CommandModules
             string response = this.TrimMessage(builder.ToString());
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return EmbedReplyAsync("Help", response);
         }
 
         [CommandWithHelp("about", "Displays information about the bot.")]
@@ -432,14 +416,6 @@ namespace TipBot.CommandModules
             this.logger.Trace("(-)");
             return this.Context.Channel.SendFileAsync(stream, "logo.png", text);
         }
-
-        //[CommandWithHelp("test", "Test.")]
-        //public async Task TestAsync()
-        //{
-        //    var text = "this is a test message";
-        //
-        //    IUserMessage message = await this.ReplyAsync(text).ConfigureAwait(false);
-        //}
 
         /// <summary>Trims the message to be shorter than 2000 characters.</summary>
         private string TrimMessage(string message)
