@@ -51,5 +51,6 @@ namespace TipBot
 
         /// <summary>Default time in which self destructed messages are deleted.</summary>
         public int SelfDestructedMessagesDelaySeconds { get; } = 20;
+        public string EmbedColorHex { get; } = "1382c6";
     }
 }
