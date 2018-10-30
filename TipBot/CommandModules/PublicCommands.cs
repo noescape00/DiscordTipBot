@@ -15,7 +15,7 @@ using TipBot.Logic;
 
 namespace TipBot.CommandModules
 {
-    public class PublicCommands : ModuleBase<SocketCommandContext>
+    public class PublicCommands : TipbotModuleBase
     {
         /// <inheritdoc cref="CommandsManager"/>
         /// <remarks>
@@ -73,7 +73,8 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+
+            return this.EmbedReplyAsync("User tipped", response, includeAvatar: true);
         }
 
         [CommandWithHelp("deposit", "Displays your unique deposit address or assigns you one if it wasn't assigned before.")]
@@ -103,7 +104,8 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+
+            return this.EmbedReplyAsync("Deposit", response);
         }
 
         [CommandWithHelp("withdraw", "Withdraws given amount to specified address. Fee will be subtracted from given amount." + "\n" +
@@ -134,7 +136,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return this.EmbedReplyAsync("Withdraw", response, includeAvatar: true);
         }
 
         [CommandWithHelp("balance", "Displays your current balance.")]
@@ -156,7 +158,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return this.EmbedReplyAsync("Balance", response, includeAvatar: true);
         }
 
         [CommandWithHelp("makeItRain", "Randomly selects online users from the current server and tips them 1 coin (or another value if specified by caller)." +
@@ -211,7 +213,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            await this.ReplyAsync(response).ConfigureAwait(false);
+            await this.EmbedReplyAsync("Make it rain!", response);
         }
 
         [CommandWithHelp("chart", "Displays top 3 tippers and users being tipped over the last 7 days.", "tipbot chart <days=7>*")]
@@ -264,7 +266,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            await this.ReplyAsync(response).ConfigureAwait(false);
+            await this.EmbedReplyAsync("Chart", response);
         }
 
         [CommandWithHelp("startQuiz", "You ask a question, supply hash of an answer and for how long the quiz will be running." +
@@ -302,7 +304,7 @@ namespace TipBot.CommandModules
             response = this.TrimMessage(response);
 
             this.logger.Trace("(-)");
-            await this.ReplyAsync(response).ConfigureAwait(false);
+            await this.EmbedReplyAsync("Start quiz", response);
         }
 
         [CommandWithHelp("answerQuiz", "Answer to any active quiz. Answer will be checked against all of them. In case your answer will be correct you'll receive a reward.",
@@ -355,7 +357,7 @@ namespace TipBot.CommandModules
             }
             else
             {
-                await this.ReplyAsync(response).ConfigureAwait(false);
+                await this.EmbedReplyAsync("Answer quiz", response);
             }
 
             this.logger.Trace("(-)");
@@ -399,7 +401,7 @@ namespace TipBot.CommandModules
                 string response = this.TrimMessage(builder.ToString());
 
                 this.logger.Trace("(-)");
-                return this.ReplyAsync(response);
+                return this.EmbedReplyAsync("List active quizzes", response);
             }
         }
 
@@ -438,7 +440,7 @@ namespace TipBot.CommandModules
             string response = this.TrimMessage(builder.ToString());
 
             this.logger.Trace("(-)");
-            return this.ReplyAsync(response);
+            return this.EmbedReplyAsync("Help", response);
         }
 
         [CommandWithHelp("about", "Displays information about the bot.")]
