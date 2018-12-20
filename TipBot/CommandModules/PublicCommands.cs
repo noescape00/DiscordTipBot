@@ -42,6 +42,8 @@ namespace TipBot.CommandModules
 
         private readonly string tadaEmoji = ":tada:";
 
+        private readonly string snowFlakeEmoji = ":snowflake:";
+
         private readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         [CommandWithHelp("tip", "Transfers specified amount of money to mentioned user.", "tipbot tip <user> <amount> <message>*")]
@@ -163,6 +165,18 @@ namespace TipBot.CommandModules
                                        " Amount of users that will be tipped is equal to totalAmount / tipAmount.", "tipbot makeItRain <totalAmount> <tipAmount=1>*")]
         public async Task MakeItRainAsync(decimal amount, decimal tipAmount = 1)
         {
+            await TipRandomUsers(amount, tipAmount, this.tadaEmoji);
+        }
+
+        [CommandWithHelp("makeItSnow", "Randomly selects online users from the current server and tips them 1 coin (or another value if specified by caller)." +
+                               " Amount of users that will be tipped is equal to totalAmount / tipAmount.", "tipbot makeItSnow <totalAmount> <tipAmount=1>*")]
+        public async Task MakeItSnowAsync(decimal amount, decimal tipAmount = 1)
+        {
+            await TipRandomUsers(amount, tipAmount, this.snowFlakeEmoji);
+        }
+
+        private async Task TipRandomUsers(decimal amount, decimal tipAmount, string messageEmoji)
+        {
             this.logger.Trace("({0}:{1},{2}:{3})", nameof(amount), amount, nameof(tipAmount), tipAmount);
 
             IUser caller = this.Context.User;
@@ -187,7 +201,7 @@ namespace TipBot.CommandModules
 
                     var builder = new StringBuilder();
 
-                    builder.AppendLine($"{this.tadaEmoji}{caller.Mention} just tipped {usersBeingTipped.Count} users {tipAmount} {this.Settings.Ticker} each!{this.tadaEmoji}");
+                    builder.AppendLine($"{messageEmoji}{caller.Mention} just tipped {usersBeingTipped.Count} users {tipAmount} {this.Settings.Ticker} each!{messageEmoji}");
                     builder.AppendLine();
 
                     foreach (DiscordUserModel tippedUser in usersBeingTipped)
